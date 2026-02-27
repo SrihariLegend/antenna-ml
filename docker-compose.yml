@@ -1,0 +1,11 @@
+services:
+  ml:
+    build: .
+    container_name: antenna_ml
+    volumes:
+      - .:/app
+    working_dir: /app
+    ports:
+      - "7860:7860"
+    stdin_open: true
+    tty: true

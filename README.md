@@ -1,10 +1,10 @@
 # 🛜 antenna-ml
 
-A machine learning pipeline for predicting WiFi 7 antenna physical parameters from operating frequency, using a Random Forest regression model with a Gradio web interface — fully containerized with Docker.
+A machine learning pipeline for predicting antenna physical parameters from operating frequency, using a Random Forest regression model with a Gradio web interface, and fully containerized with Docker.
 
 ## What it does
 
-WiFi 7 antennas must be physically designed for specific frequency bands (2.4, 5, and 6 GHz). Instead of running expensive EM simulations for every design iteration, this model learns the relationship between **frequency → antenna geometry** from simulation data and predicts design parameters instantly.
+Antennas must be physically designed for specific frequency bands. Instead of running expensive EM simulations for every design iteration, this model learns the relationship between **frequency → antenna geometry** from simulation data and predicts design parameters instantly.
 
 **Input:** Frequency in GHz (2.0 – 7.0 GHz)
 
@@ -16,7 +16,7 @@ WiFi 7 antennas must be physically designed for specific frequency bands (2.4, 5
 | Width of substrate (mm) | Dielectric substrate width |
 | Area of slots (mm²) | Total slot area on patch |
 | Radius of circular slot (mm) | Circular slot dimensions |
-| S11 (dB) | Return loss — measures how much signal is reflected |
+| S11 (dB) | Return loss |
 
 ## Project structure
 

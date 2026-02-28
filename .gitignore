@@ -8,3 +8,6 @@ __pycache__/
 *.pyc
 *.pyo
 .venv/
+
+# Test cache
+.pytest_cache/

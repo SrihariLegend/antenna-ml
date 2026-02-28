@@ -1,4 +1,4 @@
-Frequency(GHz),length of patch in mm,length of patch in mm,length of substrate in mm,width of Substrate in mm,Area of Slots(mm^2),Radiaus of Circular Slot(mm),S11(dB)
+Frequency(GHz),length of patch in mm,width of patch in mm,length of substrate in mm,width of Substrate in mm,Area of Slots(mm^2),Radius of Circular Slot(mm),S11(dB)
 2,27,38,59,76,58.2656,4,-0.542107973
 2.005000114,27,38,59,76,58.2656,4,-0.58083741
 2.00999999,27,38,59,76,58.2656,4,-0.621691331

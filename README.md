@@ -12,10 +12,11 @@ Antennas must be physically designed for specific frequency bands. Instead of ru
 | Parameter | Description |
 |---|---|
 | Length of patch (mm) | Radiating patch length |
+| Width of patch (mm) | Radiating patch width |
 | Length of substrate (mm) | Dielectric substrate length |
 | Width of substrate (mm) | Dielectric substrate width |
 | Area of slots (mm²) | Total slot area on patch |
-| Radius of circular slot (mm) | Circular slot dimensions |
+| Radius of circular slot (mm) | Circular slot radius |
 | S11 (dB) | Return loss |
 
 ## Project structure
@@ -23,13 +24,17 @@ Antennas must be physically designed for specific frequency bands. Instead of ru
 ```
 antenna-ml/
 ├── dataset_WIFI7.csv          # ~3000-sample WiFi 7 antenna simulation dataset
+├── config.py                  # Shared constants (frequency range, file paths, hyperparameters)
 ├── train_model.py             # Train base Random Forest model
 ├── tune_hyperparameters.py    # GridSearchCV hyperparameter tuning
-├── gradio_app.py              # Interactive web UI
+├── gradio_app.py              # Interactive web UI with sweep plot
 ├── run.sh                     # Docker helper script (all operations)
-├── Dockerfile                 # Python 3.11-slim container
+├── Dockerfile                 # Python 3.11-slim container (non-root user)
 ├── docker-compose.yml         # Service definition (port 7860)
-└── requirements.txt           # Python dependencies
+├── requirements.txt           # Python dependencies
+└── tests/                     # Pytest unit tests
+    ├── conftest.py
+    └── test_antenna_ml.py
 ```
 
 ## Quickstart
@@ -86,14 +91,21 @@ Cleanup:
   ./run.sh clean-all      Remove containers, images, and outputs
 ```
 
+## Running tests
+
+```bash
+# Inside the container or with dependencies installed locally:
+pytest tests/ -v
+```
+
 ## Model details
 
 - **Algorithm:** `RandomForestRegressor` (multi-output)
 - **Feature:** `Frequency(GHz)` — single input
-- **Targets:** 6 antenna design parameters
+- **Targets:** 7 antenna design parameters
 - **Split:** 80% train / 20% test, `random_state=42`
 - **Feature scaling:** `StandardScaler`
-- **Evaluation:** R², MSE, MAE per parameter + overall
+- **Evaluation:** R², RMSE, MAE per parameter + overall
 
 ### Hyperparameter search space
 
@@ -127,4 +139,4 @@ After training, the following files are created in the project directory (mounte
 - Gradio 4.16
 - matplotlib 3.8.2 · seaborn 0.13.0
 - joblib 1.3.2
-- Docker (python:3.11-slim)
+- Docker (python:3.11-slim, non-root user)

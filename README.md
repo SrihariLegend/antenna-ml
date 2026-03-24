@@ -6,7 +6,13 @@ A machine learning pipeline for predicting WiFi 7 antenna physical parameters fr
 
 WiFi 7 antennas must be physically designed for specific frequency bands (2.4, 5, and 6 GHz). Instead of running expensive EM simulations for every design iteration, this model learns the relationship between **frequency → antenna geometry** from simulation data and predicts design parameters instantly.
 
+<<<<<<< HEAD
 **Input:** Frequency in GHz (1.0 – 10.0 GHz), with optional dimension constraints (min/max bounds per parameter)
+||||||| 78942b5
+**Input:** Frequency in GHz (2.0 – 7.0 GHz)
+=======
+**Input:** Frequency in GHz (1.0 – 10.0 GHz)
+>>>>>>> 356719de886ac371c45797dac38db998a5d2a8fc
 
 **Output:** Predicted antenna design parameters with constraint status:
 | Parameter | Description |

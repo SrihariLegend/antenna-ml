@@ -9,3 +9,11 @@ services:
       - "7860:7860"
     stdin_open: true
     tty: true
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: "1"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sklearn, pandas, gradio; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

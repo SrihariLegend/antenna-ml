@@ -41,6 +41,11 @@ case "$1" in
         echo "⚠️  This will take 5-10 minutes..."
         sudo docker compose exec ml python tune_hyperparameters.py
         ;;
+
+    test)
+        echo "🧪 Running test suite..."
+        sudo docker compose exec ml python -m pytest tests/ -v --cov
+        ;;
     
     app)
         echo "🌐 Starting Gradio web app..."
@@ -149,6 +154,12 @@ case "$1" in
         fi
         ;;
     
+    build-exe)
+        echo "📦 Building standalone executable with PyInstaller..."
+        sudo docker compose exec ml python build_exe.py
+        echo "✅ Build complete! Output in dist/antenna-ml/"
+        ;;
+    
     backup)
         timestamp=$(date +%Y%m%d_%H%M%S)
         backup_dir="backup_${timestamp}"
@@ -196,7 +207,9 @@ case "$1" in
         echo "🤖 Machine Learning:"
         echo "  train       Train the antenna prediction model"
         echo "  tune        Run hyperparameter tuning (5-10 min)"
+        echo "  test        Run the test suite (pytest + coverage)"
         echo "  app         Start Gradio web interface (http://localhost:7860)"
+        echo "  build-exe   Build standalone executable with PyInstaller"
         echo ""
         echo "🔧 Development:"
         echo "  shell       Open bash shell in container"

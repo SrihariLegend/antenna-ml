@@ -67,7 +67,7 @@ def test_validate_dataset_wrong_column_count():
     df = pd.DataFrame({"Frequency(GHz)": [2.0, 3.0], "x": [1, 2]})
     result = data_loader.validate_dataset(df)
     assert result.valid is False
-    assert any("column" in e.lower() for e in result.errors)
+    assert any("missing" in e.lower() for e in result.errors)
 
 
 def test_validate_dataset_duplicate_columns():
@@ -200,5 +200,15 @@ def test_validate_uploaded_dataset_collects_all_errors():
     })
     result = data_loader.validate_uploaded_dataset(df)
     assert result.valid is False
-    # Should have errors for: missing frequency col, non-numeric, too few rows
+    # Should have errors for: missing frequency col, non-numeric, too few rows, no targets
     assert len(result.errors) >= 3
+
+
+def test_validate_uploaded_dataset_frequency_only():
+    """A dataset with only the frequency column and no targets should be rejected."""
+    df = pd.DataFrame({
+        config.FREQUENCY_COL: [float(i) for i in range(20)],
+    })
+    result = data_loader.validate_uploaded_dataset(df)
+    assert result.valid is False
+    assert any("target column" in e.lower() for e in result.errors)

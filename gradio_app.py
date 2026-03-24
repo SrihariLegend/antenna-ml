@@ -15,7 +15,6 @@ import dataset_registry
 import model_io
 import train_model
 
-config.setup_logging()
 logger = logging.getLogger(__name__)
 
 # Module-level state populated by create_app(); exposed for testing.
@@ -316,6 +315,7 @@ def create_app() -> gr.Blocks:
 
 
 if __name__ == "__main__":
+    config.setup_logging()
     logger.info("Starting Gradio app on %s:%d...", config.GRADIO_HOST, config.GRADIO_PORT)
     app = create_app()
     app.launch(

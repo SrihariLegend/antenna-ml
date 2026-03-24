@@ -125,5 +125,6 @@ def test_find_best_model_raises_when_none(tmp_path, monkeypatch):
         },
     }
     monkeypatch.setattr(config, "MODEL_FILES", patched)
+    monkeypatch.setattr(config, "DATASET_REGISTRY_PATH", str(tmp_path / "empty_registry.json"))
     with pytest.raises(FileNotFoundError, match="No trained model found"):
         model_io.find_best_model()

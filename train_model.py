@@ -13,7 +13,6 @@ import config
 import data_loader
 import model_io
 
-config.setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -40,7 +39,8 @@ def train_on_dataset(dataset_path: str, model_prefix: str) -> dict:
         per_param (list of dicts with r2, mse, mae per column).
 
     Raises:
-        SystemExit on validation failure, OSError on I/O errors.
+        ValueError: If dataset validation fails.
+        OSError: On I/O errors.
     """
     logger.info("=" * 60)
     logger.info("ANTENNA PARAMETER PREDICTION - TRAINING")
@@ -51,7 +51,7 @@ def train_on_dataset(dataset_path: str, model_prefix: str) -> dict:
     df = data_loader.load_dataset(dataset_path)
     result = data_loader.validate_dataset(df)
     if not result.valid:
-        raise SystemExit(f"Dataset validation failed: {result.errors}")
+        raise ValueError(f"Dataset validation failed: {result.errors}")
 
     # [2/7] Prepare features and targets
     logger.info("[2/7] Preparing features and targets...")
@@ -149,4 +149,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    config.setup_logging()
     main()

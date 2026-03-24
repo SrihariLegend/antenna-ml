@@ -13,7 +13,6 @@ import config
 import data_loader
 import model_io
 
-config.setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +26,7 @@ def main() -> None:
     df = data_loader.load_dataset(config.DATASET_PATH)
     result = data_loader.validate_dataset(df)
     if not result.valid:
-        raise SystemExit(f"Dataset validation failed: {result.errors}")
+        raise ValueError(f"Dataset validation failed: {result.errors}")
 
     logger.info(
         "Dataset: %d samples, frequency range %.2f – %.2f GHz",
@@ -135,4 +134,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    config.setup_logging()
     main()

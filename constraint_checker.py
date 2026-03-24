@@ -9,7 +9,6 @@ from dataclasses import dataclass
 
 import config
 
-config.setup_logging()
 logger = logging.getLogger(__name__)
 
 

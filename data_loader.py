@@ -70,11 +70,23 @@ def validate_dataset(df: pd.DataFrame) -> ValidationResult:
     errors: list[str] = []
     warnings: list[str] = []
 
-    # Check column count
-    if len(df.columns) != len(config.EXPECTED_COLUMNS):
-        errors.append(
-            f"Expected {len(config.EXPECTED_COLUMNS)} columns, got {len(df.columns)}."
-        )
+    # Check exact expected columns by name
+    expected = config.EXPECTED_COLUMNS
+    actual = list(df.columns)
+    missing = [c for c in expected if c not in actual]
+    unexpected = [c for c in actual if c not in expected]
+    if missing:
+        errors.append(f"Missing expected columns: {missing}")
+    if unexpected:
+        warnings.append(f"Unexpected columns found: {unexpected}")
+
+    # Check column order matches expected (only if all expected columns present)
+    if not missing and not unexpected:
+        if actual != expected:
+            warnings.append(
+                "Column order differs from expected. "
+                "Downstream logic uses column names, so this is non-fatal."
+            )
 
     # Check for duplicate column names
     seen: set[str] = set()
@@ -156,6 +168,14 @@ def validate_uploaded_dataset(df: pd.DataFrame) -> ValidationResult:
             len(df),
             config.MIN_DATASET_ROWS,
         )
+
+    # Require at least one target column beyond frequency
+    target_cols = [c for c in df.columns if c != config.FREQUENCY_COL]
+    if not target_cols:
+        errors.append(
+            f"Dataset must contain at least one target column besides '{config.FREQUENCY_COL}'."
+        )
+        logger.error("Upload validation: no target columns found.")
 
     valid = len(errors) == 0
     if valid:

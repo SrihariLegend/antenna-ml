@@ -1,133 +1,153 @@
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+"""Train a Random Forest model to predict antenna parameters from frequency."""
+
+import logging
+from dataclasses import dataclass
+
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend for Docker
+matplotlib.use("Agg")  # Non-interactive backend for Docker
 import matplotlib.pyplot as plt
-import seaborn as sns
-import joblib
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-print("="*60)
-print("ANTENNA PARAMETER PREDICTION - TRAINING")
-print("="*60)
+import config
+import data_loader
+import model_io
 
-# Load the dataset
-print("\n[1/7] Loading dataset...")
-df = pd.read_csv('dataset_WIFI7.csv')
-print(f"Dataset shape: {df.shape}")
-print(f"Columns: {list(df.columns)}")
+logger = logging.getLogger(__name__)
 
-# Define features and targets
-print("\n[2/7] Preparing features and targets...")
-X = df[['Frequency(GHz)']].values
-target_columns = [col for col in df.columns if col.lower() != 'frequency(ghz)']
-y = df[target_columns].values
 
-print(f"Feature shape: {X.shape}")
-print(f"Target shape: {y.shape}")
-print(f"Target columns ({len(target_columns)}): {target_columns}")
+@dataclass
+class TrainingMetrics:
+    """Metrics produced by a training run."""
 
-# Split the data
-print("\n[3/7] Splitting data (80% train, 20% test)...")
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-print(f"Training samples: {len(X_train)}")
-print(f"Test samples: {len(X_test)}")
+    train_r2: float
+    test_r2: float
+    train_mse: float
+    test_mse: float
+    per_param: list[dict]  # each: {"name": str, "r2": float, "mse": float, "mae": float}
 
-# Scale features
-print("\n[4/7] Scaling features...")
-scaler_X = StandardScaler()
-X_train_scaled = scaler_X.fit_transform(X_train)
-X_test_scaled = scaler_X.transform(X_test)
 
-# Create and train Random Forest
-print("\n[5/7] Training Random Forest model...")
-print("Parameters: n_estimators=100, n_jobs=-1 (using all CPU cores)")
-rf_model = RandomForestRegressor(
-    n_estimators=100,
-    max_depth=None,
-    min_samples_split=2,
-    min_samples_leaf=1,
-    random_state=42,
-    n_jobs=-1,
-    verbose=1
-)
+def train_on_dataset(dataset_path: str, model_prefix: str) -> dict:
+    """Run the full training pipeline on a given dataset.
 
-rf_model.fit(X_train_scaled, y_train)
+    Args:
+        dataset_path: Path to the CSV file.
+        model_prefix: Prefix for saving model artifacts.
 
-# Make predictions
-print("\n[6/7] Evaluating model...")
-y_pred_train = rf_model.predict(X_train_scaled)
-y_pred_test = rf_model.predict(X_test_scaled)
+    Returns:
+        Dict with keys: train_r2, test_r2, train_mse, test_mse,
+        per_param (list of dicts with r2, mse, mae per column).
 
-# Overall metrics
-train_r2 = r2_score(y_train, y_pred_train)
-test_r2 = r2_score(y_test, y_pred_test)
-train_mse = mean_squared_error(y_train, y_pred_train)
-test_mse = mean_squared_error(y_test, y_pred_test)
+    Raises:
+        ValueError: If dataset validation fails.
+        OSError: On I/O errors.
+    """
+    logger.info("=" * 60)
+    logger.info("ANTENNA PARAMETER PREDICTION - TRAINING")
+    logger.info("=" * 60)
 
-print("\n" + "="*60)
-print("OVERALL PERFORMANCE")
-print("="*60)
-print(f"Train R² Score: {train_r2:.4f}")
-print(f"Test R² Score:  {test_r2:.4f}")
-print(f"Train MSE:      {train_mse:.4f}")
-print(f"Test MSE:       {test_mse:.4f}")
+    # [1/7] Load dataset
+    logger.info("[1/7] Loading dataset...")
+    df = data_loader.load_dataset(dataset_path)
+    result = data_loader.validate_dataset(df)
+    if not result.valid:
+        raise ValueError(f"Dataset validation failed: {result.errors}")
 
-# Per-parameter metrics
-print("\n" + "="*60)
-print("PER-PARAMETER PERFORMANCE")
-print("="*60)
-for i, col in enumerate(target_columns):
-    r2 = r2_score(y_test[:, i], y_pred_test[:, i])
-    mse = mean_squared_error(y_test[:, i], y_pred_test[:, i])
-    mae = mean_absolute_error(y_test[:, i], y_pred_test[:, i])
-    print(f"\n{col}:")
-    print(f"  R² Score: {r2:.4f}")
-    print(f"  MSE:      {mse:.4f}")
-    print(f"  MAE:      {mae:.4f}")
+    # [2/7] Prepare features and targets
+    logger.info("[2/7] Preparing features and targets...")
+    X, y, target_columns = data_loader.prepare_features_targets(df)
 
-# Create visualization
-print("\n[7/7] Creating visualization...")
-fig, axes = plt.subplots(3, 3, figsize=(15, 12))
-axes = axes.flatten()
+    # [3/7] Split and scale
+    logger.info("[3/7] Splitting data (80%% train, 20%% test)...")
+    splits = data_loader.split_and_scale(X, y)
+    X_train_scaled = splits["X_train_scaled"]
+    X_test_scaled = splits["X_test_scaled"]
+    y_train = splits["y_train"]
+    y_test = splits["y_test"]
+    scaler = splits["scaler"]
 
-for i, col in enumerate(target_columns[:9]):
-    if i < len(target_columns):
+    # [4/7] Train model
+    logger.info("[4/7] Training Random Forest model (n_estimators=100, n_jobs=-1)...")
+    rf_model = RandomForestRegressor(**config.DEFAULT_RF_PARAMS)
+    rf_model.fit(X_train_scaled, y_train)
+
+    # [5/7] Evaluate
+    logger.info("[5/7] Evaluating model...")
+    y_pred_train = rf_model.predict(X_train_scaled)
+    y_pred_test = rf_model.predict(X_test_scaled)
+
+    train_r2 = r2_score(y_train, y_pred_train)
+    test_r2 = r2_score(y_test, y_pred_test)
+    train_mse = mean_squared_error(y_train, y_pred_train)
+    test_mse = mean_squared_error(y_test, y_pred_test)
+
+    logger.info("=" * 60)
+    logger.info("OVERALL PERFORMANCE")
+    logger.info("=" * 60)
+    logger.info("Train R²: %.4f  |  Test R²: %.4f", train_r2, test_r2)
+    logger.info("Train MSE: %.4f  |  Test MSE: %.4f", train_mse, test_mse)
+
+    logger.info("PER-PARAMETER PERFORMANCE")
+    per_param = []
+    for i, col in enumerate(target_columns):
+        r2 = r2_score(y_test[:, i], y_pred_test[:, i])
+        mse = mean_squared_error(y_test[:, i], y_pred_test[:, i])
+        mae = mean_absolute_error(y_test[:, i], y_pred_test[:, i])
+        logger.info("%s — R²: %.4f  MSE: %.4f  MAE: %.4f", col, r2, mse, mae)
+        per_param.append({"name": col, "r2": r2, "mse": mse, "mae": mae})
+
+    # [6/7] Visualize
+    logger.info("[6/7] Creating visualization...")
+    fig, axes = plt.subplots(3, 3, figsize=(15, 12))
+    axes = axes.flatten()
+
+    for i, col in enumerate(target_columns[:9]):
         axes[i].scatter(y_test[:, i], y_pred_test[:, i], alpha=0.5)
-        axes[i].plot([y_test[:, i].min(), y_test[:, i].max()], 
-                     [y_test[:, i].min(), y_test[:, i].max()], 
-                     'r--', lw=2)
-        axes[i].set_xlabel('Actual')
-        axes[i].set_ylabel('Predicted')
-        axes[i].set_title(f'{col}')
+        axes[i].plot(
+            [y_test[:, i].min(), y_test[:, i].max()],
+            [y_test[:, i].min(), y_test[:, i].max()],
+            "r--",
+            lw=2,
+        )
+        axes[i].set_xlabel("Actual")
+        axes[i].set_ylabel("Predicted")
+        axes[i].set_title(col)
         axes[i].grid(True, alpha=0.3)
 
-# Hide empty subplots
-for i in range(len(target_columns), 9):
-    axes[i].axis('off')
+    for i in range(len(target_columns), 9):
+        axes[i].axis("off")
 
-plt.tight_layout()
-plt.savefig('prediction_results.png', dpi=300, bbox_inches='tight')
-print("Visualization saved: prediction_results.png")
+    plt.tight_layout()
+    try:
+        plt.savefig(config.VISUALIZATION_PATH, dpi=300, bbox_inches="tight")
+        logger.info("Visualization saved: %s", config.VISUALIZATION_PATH)
+    except OSError as exc:
+        logger.error("Failed to save visualization: %s", exc)
+    finally:
+        plt.close(fig)
 
-# Save model and metadata
-print("\nSaving model artifacts...")
-joblib.dump(rf_model, 'rf_antenna_model.pkl')
-joblib.dump(scaler_X, 'scaler_X.pkl')
-joblib.dump(target_columns, 'target_columns.pkl')
+    # [7/7] Save model
+    logger.info("[7/7] Saving model artifacts...")
+    model_io.save_model(rf_model, scaler, target_columns, prefix=model_prefix)
 
-print("\n" + "="*60)
-print("TRAINING COMPLETE!")
-print("="*60)
-print("\nSaved files:")
-print("  - rf_antenna_model.pkl  (trained model)")
-print("  - scaler_X.pkl          (feature scaler)")
-print("  - target_columns.pkl    (target names)")
-print("  - prediction_results.png (visualization)")
-print("\nYou can now run predictions using these files!")
-print("="*60)
+    logger.info("=" * 60)
+    logger.info("TRAINING COMPLETE!")
+    logger.info("=" * 60)
+
+    return {
+        "train_r2": train_r2,
+        "test_r2": test_r2,
+        "train_mse": train_mse,
+        "test_mse": test_mse,
+        "per_param": per_param,
+    }
+
+
+def main() -> None:
+    """Run the full training pipeline."""
+    train_on_dataset(config.DATASET_PATH, "base")
+
+
+if __name__ == "__main__":
+    config.setup_logging()
+    main()

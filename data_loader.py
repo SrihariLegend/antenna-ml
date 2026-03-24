@@ -78,7 +78,7 @@ def validate_dataset(df: pd.DataFrame) -> ValidationResult:
     if missing:
         errors.append(f"Missing expected columns: {missing}")
     if unexpected:
-        warnings.append(f"Unexpected columns found: {unexpected}")
+        errors.append(f"Unexpected columns found: {unexpected}")
 
     # Check column order matches expected (only if all expected columns present)
     if not missing and not unexpected:

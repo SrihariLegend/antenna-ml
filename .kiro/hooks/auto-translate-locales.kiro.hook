@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Auto-Translate Localization Files",
+  "description": "Monitors changes to localization files (.json, .yaml, .yml, .properties) containing user-facing text in the primary language. When edits are detected, identifies new or modified text entries and generates translations for all configured target languages, preserving context, meaning, and locale-specific conventions (e.g., date formats, pluralization rules, text direction).",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.json",
+      "**/*.yaml",
+      "**/*.yml",
+      "**/*.properties"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A localization file was just edited. Please do the following:\n\n1. Read the changed file and identify which text entries were added or modified (compare with the git diff if available using `git diff` on the file).\n2. Determine the primary/source language of the file based on its path or content (e.g., en, en-US).\n3. Locate all sibling or parallel localization files for other target languages in the project (e.g., files in locale directories like /fr/, /es/, /de/, /ja/, or files named with locale suffixes like messages_fr.json).\n4. For each new or modified text entry, generate accurate translations for every target language file found. Ensure:\n   - Translations preserve the original meaning and context.\n   - Placeholder variables (e.g., {name}, {{count}}, %s) are kept intact and untranslated.\n   - Locale-specific conventions are respected (number formats, date formats, pluralization rules, text direction).\n   - Existing translations that were not modified in the source file are left unchanged.\n5. Write the updated translations to the corresponding target language files, maintaining the same file structure and key ordering.\n\nIf no other locale files exist yet, suggest creating them and ask the user which target languages they want to support."
+  }
+}

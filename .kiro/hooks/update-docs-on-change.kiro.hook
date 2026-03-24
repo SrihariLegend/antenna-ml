@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Update Docs on Source Change",
+  "description": "When Python source files or key config files (requirements.txt, Dockerfile, docker-compose.yml) are edited, ask the agent to review the changes and update the README.md accordingly to keep documentation in sync.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.py",
+      "requirements.txt",
+      "Dockerfile",
+      "docker-compose.yml",
+      ".coveragerc",
+      "pytest.ini"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A source or config file was just edited. Review the change and determine if the README.md needs to be updated to reflect it. If so, make the minimal necessary updates to README.md to keep documentation accurate and in sync with the codebase. Only update docs if the change is meaningful (e.g., new features, changed APIs, updated dependencies, modified configuration). Do not update docs for trivial changes like formatting or comments."
+  }
+}

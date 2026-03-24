@@ -1,0 +1,21 @@
+{
+  "datasets": {
+    "WiFi7 Default": {
+      "path": "dataset_WIFI7.csv",
+      "columns": [
+        "Frequency(GHz)",
+        "length of patch in mm",
+        "width of patch in mm",
+        "length of substrate in mm",
+        "width of Substrate in mm",
+        "Area of Slots(mm^2)",
+        "Radiaus of Circular Slot(mm)",
+        "S11(dB)"
+      ],
+      "row_count": 3003,
+      "freq_min": 2.0,
+      "freq_max": 7.0,
+      "added_at": "2026-03-24T20:20:25.187484+00:00"
+    }
+  }
+}

@@ -70,6 +70,14 @@ def test_validate_dataset_wrong_column_count():
     assert any("missing" in e.lower() for e in result.errors)
 
 
+def test_validate_dataset_unexpected_column_is_error(sample_dataset):
+    df = sample_dataset.copy()
+    df["unexpected_col"] = 1.23
+    result = data_loader.validate_dataset(df)
+    assert result.valid is False
+    assert any("unexpected columns" in e.lower() for e in result.errors)
+
+
 def test_validate_dataset_duplicate_columns():
     # Pandas handles duplicates by suffixing; we pass a df with manually set dupe cols
     df = pd.DataFrame([[2.0, 1.0, 1.0]], columns=[config.FREQUENCY_COL, "a", "a"])

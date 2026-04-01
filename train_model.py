@@ -49,7 +49,13 @@ def train_on_dataset(dataset_path: str, model_prefix: str) -> dict:
     # [1/7] Load dataset
     logger.info("[1/7] Loading dataset...")
     df = data_loader.load_dataset(dataset_path)
-    result = data_loader.validate_dataset(df)
+
+    # Use strict schema validation only for the default dataset;
+    # custom datasets use the looser upload validation.
+    if dataset_path == config.DATASET_PATH:
+        result = data_loader.validate_dataset(df)
+    else:
+        result = data_loader.validate_uploaded_dataset(df)
     if not result.valid:
         raise ValueError(f"Dataset validation failed: {result.errors}")
 
@@ -69,7 +75,9 @@ def train_on_dataset(dataset_path: str, model_prefix: str) -> dict:
     # [4/7] Train model
     logger.info("[4/7] Training Random Forest model (n_estimators=100, n_jobs=-1)...")
     rf_model = RandomForestRegressor(**config.DEFAULT_RF_PARAMS)
-    rf_model.fit(X_train_scaled, y_train)
+    # Ravel single-target y to avoid sklearn warnings and ensure consistent predict shape
+    y_train_fit = y_train.ravel() if y_train.ndim == 2 and y_train.shape[1] == 1 else y_train
+    rf_model.fit(X_train_scaled, y_train_fit)
 
     # [5/7] Evaluate
     logger.info("[5/7] Evaluating model...")
@@ -89,6 +97,15 @@ def train_on_dataset(dataset_path: str, model_prefix: str) -> dict:
 
     logger.info("PER-PARAMETER PERFORMANCE")
     per_param = []
+    # Ensure 2D for consistent indexing
+    if y_test.ndim == 1:
+        y_test = y_test.reshape(-1, 1)
+    if y_pred_test.ndim == 1:
+        y_pred_test = y_pred_test.reshape(-1, 1)
+    if y_train.ndim == 1:
+        y_train = y_train.reshape(-1, 1)
+    if y_pred_train.ndim == 1:
+        y_pred_train = y_pred_train.reshape(-1, 1)
     for i, col in enumerate(target_columns):
         r2 = r2_score(y_test[:, i], y_pred_test[:, i])
         mse = mean_squared_error(y_test[:, i], y_pred_test[:, i])
@@ -98,10 +115,13 @@ def train_on_dataset(dataset_path: str, model_prefix: str) -> dict:
 
     # [6/7] Visualize
     logger.info("[6/7] Creating visualization...")
-    fig, axes = plt.subplots(3, 3, figsize=(15, 12))
+    n_plots = len(target_columns)
+    ncols = min(n_plots, 3)
+    nrows = max(1, (n_plots + ncols - 1) // ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows), squeeze=False)
     axes = axes.flatten()
 
-    for i, col in enumerate(target_columns[:9]):
+    for i, col in enumerate(target_columns[:n_plots]):
         axes[i].scatter(y_test[:, i], y_pred_test[:, i], alpha=0.5)
         axes[i].plot(
             [y_test[:, i].min(), y_test[:, i].max()],
@@ -114,7 +134,7 @@ def train_on_dataset(dataset_path: str, model_prefix: str) -> dict:
         axes[i].set_title(col)
         axes[i].grid(True, alpha=0.3)
 
-    for i in range(len(target_columns), 9):
+    for i in range(len(target_columns), len(axes)):
         axes[i].axis("off")
 
     plt.tight_layout()

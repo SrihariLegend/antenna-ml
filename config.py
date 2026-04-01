@@ -4,24 +4,20 @@ import logging
 import sys
 
 # --- Dataset ---
-DATASET_PATH = "dataset_WIFI7.csv"
-FREQUENCY_COL = "Frequency(GHz)"
-# Expanded frequency range (was 2.0–7.0)
-FREQ_MIN = 1.0
-FREQ_MAX = 10.0
+DATASET_PATH = "clean_dataset_rect.csv"
+FREQUENCY_COL = "freq"
+FREQ_MIN = 1.5
+FREQ_MAX = 10.5
 
-# Expected columns in the dataset (in order).
-# Note: the second "length of patch in mm" was renamed to "width of patch in mm".
-EXPECTED_COLUMNS = [
-    "Frequency(GHz)",
-    "length of patch in mm",
-    "width of patch in mm",
-    "length of substrate in mm",
-    "width of Substrate in mm",
-    "Area of Slots(mm^2)",
-    "Radiaus of Circular Slot(mm)",
-    "S11(dB)",
-]
+# Feature columns (model inputs) and target columns (model outputs).
+FEATURE_COLUMNS = ["freq", "patch_length", "substrate_height"]
+TARGET_COLUMNS = ["S11"]
+
+EXPECTED_COLUMNS = FEATURE_COLUMNS + TARGET_COLUMNS
+
+# Geometry search space for optimization (from CST simulation grid)
+PATCH_LENGTH_RANGE = (8.0, 34.11)    # mm
+SUBSTRATE_HEIGHT_VALUES = [0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.4, 2.8, 3.2]  # mm (CST + interpolated)
 
 # --- Train / test split ---
 TEST_SIZE = 0.2
@@ -73,24 +69,23 @@ VISUALIZATION_PATH = "prediction_results.png"
 DATASETS_DIR = "datasets"                          # directory for uploaded CSVs
 DATASET_REGISTRY_PATH = "dataset_registry.json"    # registry JSON file
 MIN_DATASET_ROWS = 10                              # minimum rows for validation
-DEFAULT_DATASET_NAME = "WiFi7 Default"             # name for the bundled dataset
+DEFAULT_DATASET_NAME = "Patch Antenna (CST Simulated)"             # name for the bundled dataset
 
 # --- Dimension constraint parameter names and units ---
 CONSTRAINT_PARAMS = {
-    "length of patch in mm": "mm",
-    "width of patch in mm": "mm",
-    "length of substrate in mm": "mm",
-    "width of Substrate in mm": "mm",
-    "Area of Slots(mm^2)": "mm²",
-    "Radiaus of Circular Slot(mm)": "mm",
-    "S11(dB)": "dB",
+    "patch_length": "mm",
+    "patch_width": "mm",
+    "substrate_height": "mm",
+    "substrate_width": "mm",
+    "substrate_length": "mm",
 }
 
 # --- PyInstaller ---
 PYINSTALLER_ENTRY = "gradio_app.py"                # entry point for the executable
 PYINSTALLER_NAME = "antenna-ml"                     # output executable name
 PYINSTALLER_BUNDLE_DATA = [                         # extra data files to bundle
-    ("dataset_WIFI7.csv", "."),
+    ("augmented_dataset_clean.csv", "."),
+    ("clean_dataset_rect.csv", "."),
     ("dataset_registry.json", "."),
     ("datasets", "datasets"),
 ]

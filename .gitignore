@@ -3,6 +3,15 @@
 *.png
 backup_*/
 
+# Generated datasets (reproducible via augment_dataset.py)
+augmented_dataset.csv
+augmented_dataset_clean.csv
+
+# Build artifacts
+dist/
+build/
+*.spec
+
 # Python
 __pycache__/
 *.pyc

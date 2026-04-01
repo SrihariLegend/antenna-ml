@@ -16,15 +16,30 @@ import model_io
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
-    """Run GridSearchCV hyperparameter tuning and save the best model."""
+def tune_on_dataset(dataset_path: str, model_prefix: str) -> dict:
+    """Run GridSearchCV hyperparameter tuning on a given dataset.
+
+    Args:
+        dataset_path: Path to the CSV file.
+        model_prefix: Prefix for saving tuned model artifacts (suffixed with '_tuned').
+
+    Returns:
+        Dict with keys: test_r2, test_mse, test_mae, best_params, elapsed_seconds,
+        per_param (list of dicts with r2, mae per column).
+
+    Raises:
+        ValueError: If dataset validation fails.
+    """
     logger.info("=" * 60)
     logger.info("HYPERPARAMETER TUNING - ANTENNA PARAMETERS")
     logger.info("=" * 60)
 
     # Load and validate dataset
-    df = data_loader.load_dataset(config.DATASET_PATH)
-    result = data_loader.validate_dataset(df)
+    df = data_loader.load_dataset(dataset_path)
+    if dataset_path == config.DATASET_PATH:
+        result = data_loader.validate_dataset(df)
+    else:
+        result = data_loader.validate_uploaded_dataset(df)
     if not result.valid:
         raise ValueError(f"Dataset validation failed: {result.errors}")
 
@@ -66,7 +81,8 @@ def main() -> None:
     )
 
     start_time = time.time()
-    grid_search.fit(X_train_scaled, y_train)
+    y_train_fit = y_train.ravel() if y_train.ndim == 2 and y_train.shape[1] == 1 else y_train
+    grid_search.fit(X_train_scaled, y_train_fit)
     elapsed = time.time() - start_time
 
     logger.info("=" * 60)
@@ -82,6 +98,11 @@ def main() -> None:
     # Evaluate on test set
     best_model = grid_search.best_estimator_
     y_pred_test = best_model.predict(X_test_scaled)
+    # Ensure 2D for consistent indexing
+    if y_test.ndim == 1:
+        y_test = y_test.reshape(-1, 1)
+    if y_pred_test.ndim == 1:
+        y_pred_test = y_pred_test.reshape(-1, 1)
     test_r2 = r2_score(y_test, y_pred_test)
     test_mse = mean_squared_error(y_test, y_pred_test)
     test_mae = mean_absolute_error(y_test, y_pred_test)
@@ -125,12 +146,34 @@ def main() -> None:
         logger.warning("Could not load base model for comparison: %s", exc)
 
     # Save tuned model
-    logger.info("Saving tuned model artifacts...")
-    model_io.save_model(best_model, scaler, target_columns, prefix="tuned")
+    tuned_prefix = f"{model_prefix}_tuned" if model_prefix != "base" else "tuned"
+    logger.info("Saving tuned model artifacts with prefix '%s'...", tuned_prefix)
+    model_io.save_model(best_model, scaler, target_columns, prefix=tuned_prefix)
 
     logger.info("=" * 60)
     logger.info("TUNING COMPLETE!")
     logger.info("=" * 60)
+
+    per_param = []
+    for i, col in enumerate(target_columns):
+        r2 = r2_score(y_test[:, i], y_pred_test[:, i])
+        mae_val = mean_absolute_error(y_test[:, i], y_pred_test[:, i])
+        per_param.append({"name": col, "r2": r2, "mae": mae_val})
+
+    return {
+        "test_r2": test_r2,
+        "test_mse": test_mse,
+        "test_mae": test_mae,
+        "best_params": grid_search.best_params_,
+        "elapsed_seconds": elapsed,
+        "per_param": per_param,
+        "tuned_prefix": tuned_prefix,
+    }
+
+
+def main() -> None:
+    """Run the full tuning pipeline on the default dataset."""
+    tune_on_dataset(config.DATASET_PATH, "base")
 
 
 if __name__ == "__main__":

@@ -166,7 +166,6 @@ case "$1" in
         echo "💾 Creating backup..."
         mkdir -p "$backup_dir"
         cp *.pkl *.png "$backup_dir/" 2>/dev/null
-        cp dataset_WIFI7.csv "$backup_dir/" 2>/dev/null
         echo "✅ Backup created: $backup_dir"
         ls -lh "$backup_dir/"
         ;;

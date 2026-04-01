@@ -40,7 +40,7 @@ def load_dataset(path: str = config.DATASET_PATH) -> pd.DataFrame:
     except FileNotFoundError:
         raise FileNotFoundError(
             f"Dataset not found at '{path}'. "
-            "Ensure dataset_WIFI7.csv is in the working directory."
+            "Ensure the dataset CSV is in the working directory."
         )
     except pd.errors.EmptyDataError:
         raise ValueError(f"Dataset file '{path}' is empty.")
@@ -70,23 +70,12 @@ def validate_dataset(df: pd.DataFrame) -> ValidationResult:
     errors: list[str] = []
     warnings: list[str] = []
 
-    # Check exact expected columns by name
-    expected = config.EXPECTED_COLUMNS
+    # Check required feature and target columns exist
+    required = config.FEATURE_COLUMNS + config.TARGET_COLUMNS
     actual = list(df.columns)
-    missing = [c for c in expected if c not in actual]
-    unexpected = [c for c in actual if c not in expected]
+    missing = [c for c in required if c not in actual]
     if missing:
-        errors.append(f"Missing expected columns: {missing}")
-    if unexpected:
-        errors.append(f"Unexpected columns found: {unexpected}")
-
-    # Check column order matches expected (only if all expected columns present)
-    if not missing and not unexpected:
-        if actual != expected:
-            warnings.append(
-                "Column order differs from expected. "
-                "Downstream logic uses column names, so this is non-fatal."
-            )
+        errors.append(f"Missing required columns: {missing}")
 
     # Check for duplicate column names
     seen: set[str] = set()
@@ -196,26 +185,39 @@ def prepare_features_targets(
 
     Returns:
         Tuple of (X, y, target_columns) where:
-            X: Feature array of shape (n_samples, 1).
+            X: Feature array of shape (n_samples, n_features).
             y: Target array of shape (n_samples, n_targets).
             target_columns: List of target column names.
 
     Raises:
-        KeyError: If the frequency column is not present in the DataFrame.
+        KeyError: If required columns are not present in the DataFrame.
     """
-    if config.FREQUENCY_COL not in df.columns:
+    # Use explicit feature/target columns from config if available,
+    # otherwise fall back to frequency-only for uploaded datasets.
+    feature_cols = getattr(config, "FEATURE_COLUMNS", [config.FREQUENCY_COL])
+    target_cols = getattr(config, "TARGET_COLUMNS", None)
+
+    missing_features = [c for c in feature_cols if c not in df.columns]
+    if missing_features:
         raise KeyError(
-            f"Frequency column '{config.FREQUENCY_COL}' not found. "
+            f"Feature columns {missing_features} not found. "
             f"Available columns: {list(df.columns)}"
         )
 
-    target_columns = [col for col in df.columns if col != config.FREQUENCY_COL]
-    X = df[[config.FREQUENCY_COL]].values
+    if target_cols:
+        missing_targets = [c for c in target_cols if c not in df.columns]
+        if missing_targets:
+            raise KeyError(f"Target columns {missing_targets} not found.")
+        target_columns = target_cols
+    else:
+        target_columns = [col for col in df.columns if col not in feature_cols]
+
+    X = df[feature_cols].values
     y = df[target_columns].values
 
     logger.info(
         "Features: %s, shape %s. Targets (%d): %s, shape %s.",
-        config.FREQUENCY_COL,
+        feature_cols,
         X.shape,
         len(target_columns),
         target_columns,

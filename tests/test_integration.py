@@ -64,9 +64,7 @@ def test_gradio_predict_with_trained_model(tmp_path, sample_dataset, monkeypatch
 
     importlib.reload(gradio_app)
     gradio_app.create_app()
-    # Call the module-level predict function with no constraints
-    no_constraints = [None] * (len(config.CONSTRAINT_PARAMS) * 2)
-    result = gradio_app.predict_antenna_parameters(5.0, *no_constraints)
+    result = gradio_app.predict_antenna_parameters(5.0)
 
     assert isinstance(result, str)
     assert "| Parameter | Value |" in result

@@ -108,9 +108,10 @@ def launch_cst(output_path):
 
     # Locate the CST Linker script relative to this file or bundled path
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-    linker_script = os.path.join(base, "cst_linker", "example_script.py")
+    linker_script = os.path.join(base, "CST_Linker", "example_script.py")
     if not os.path.exists(linker_script):
-        # Try sibling directory layout (non-bundled)
+        linker_script = os.path.join(base, "cst_linker", "example_script.py")
+    if not os.path.exists(linker_script):
         linker_script = os.path.join(os.path.dirname(base), "CST_Linker", "example_script.py")
     if not os.path.exists(linker_script):
         return f"❌ CST Linker script not found. Expected at:\n{linker_script}"

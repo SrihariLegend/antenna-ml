@@ -1,163 +1,130 @@
-# 🛜 antenna-ml
+# 📡 antenna-ml
 
-A machine learning pipeline for predicting antenna physical parameters from operating frequency, using a Random Forest regression model with a Gradio web interface, and fully containerized with Docker.
+Machine learning pipeline for predicting rectangular patch antenna S11 (return loss) from operating frequency and geometry constraints. Uses a Random Forest model trained on CST Studio simulation data, augmented with physics-informed interpolation. Includes a Gradio web interface with interactive 3D antenna visualisation and CST project generation.
 
 ## What it does
 
-Antennas must be physically designed for specific frequency bands. Instead of running expensive EM simulations for every design iteration, this model learns the relationship between **frequency → antenna geometry** from simulation data and predicts design parameters instantly.
+Given a target frequency (1.5–10.5 GHz) and optional size constraints, the model predicts the optimal antenna geometry (patch length, substrate height) that minimises S11, then displays the full design with an interactive 3D preview.
 
-**Input:** Frequency in GHz (1.0 – 10.0 GHz), with optional dimension constraints (min/max bounds per parameter)
+**Input:** Frequency (GHz), optional max patch length / substrate height constraints
 
-**Output:** Predicted antenna design parameters with constraint status:
+**Output:**
 | Parameter | Description |
 |---|---|
-| Length of patch (mm) | Radiating patch length |
-| Width of patch (mm) | Radiating patch width |
-| Length of substrate (mm) | Dielectric substrate length |
-| Width of substrate (mm) | Dielectric substrate width |
-| Area of slots (mm²) | Total slot area on patch |
-| Radius of circular slot (mm) | Circular slot dimensions |
-| S11 (dB) | Return loss |
+| S11 (dB) | Predicted return loss at target frequency |
+| Patch length (mm) | Radiating element length |
+| Patch width (mm) | 38 mm (fixed, per CST simulation setup) |
+| Substrate height (mm) | Dielectric substrate thickness |
+| Substrate length (mm) | 2 × patch length |
+| Substrate width (mm) | 76 mm (2 × patch width) |
 
-Parameters that fall outside user-defined constraints are flagged with ⚠️ in the results.
+## Quick start
+
+```bash
+git clone --recurse-submodules https://github.com/SrihariLegend/antenna-ml.git
+cd antenna-ml
+pip install -r requirements.txt
+
+python augment_dataset.py   # generate augmented dataset (25k → 81k rows)
+python train_model.py       # train the model (~1 min)
+python gradio_app.py        # launch web UI at http://localhost:7860
+```
+
+Or with Docker:
+```bash
+./run.sh rebuild
+./run.sh train
+./run.sh app
+```
 
 ## Project structure
 
 ```
 antenna-ml/
-├── config.py                  # Centralized constants, paths, hyperparams, logging
-├── data_loader.py             # Dataset loading, validation, feature/target prep
-├── constraint_checker.py      # Dimension constraint validation and checking
-├── dataset_registry.py        # Dataset CRUD operations (JSON-backed registry)
-├── model_io.py                # Model save/load with integrity checks
-├── train_model.py             # Train base Random Forest model
+├── config.py                  # Constants, paths, hyperparameters
+├── data_loader.py             # Dataset loading and validation
+├── train_model.py             # Train Random Forest model
 ├── tune_hyperparameters.py    # GridSearchCV hyperparameter tuning
-├── gradio_app.py              # Tabbed Gradio web UI (Prediction + Dataset Management)
-├── build_exe.py               # PyInstaller packaging script
-├── dataset_WIFI7.csv          # ~3000-sample WiFi 7 antenna simulation dataset
-├── datasets/                  # Uploaded user datasets
-├── dataset_registry.json      # Dataset registry (auto-generated)
-├── run.sh                     # Docker helper script (all operations)
-├── Dockerfile                 # Python 3.11-slim container
-├── docker-compose.yml         # Service definition (port 7860)
-├── requirements.txt           # Python dependencies
-└── tests/                     # pytest test suite (106 tests, 87%+ coverage)
+├── augment_dataset.py         # Multi-fidelity data augmentation
+├── balanis.py                 # Antenna dimension helpers (CST geometry rules)
+├── antenna_3d.py              # Interactive 3D Plotly visualiser (extensible)
+├── gradio_app.py              # Gradio web UI (prediction + dataset management)
+├── model_io.py                # Model save/load with integrity checks
+├── dataset_registry.py        # Dataset CRUD (JSON-backed registry)
+├── build_exe.py               # PyInstaller packaging
+├── clean_dataset_rect.csv     # CST-simulated dataset (25,025 rows, 3 heights)
+├── CST_Linker/                # Git submodule — CST project generator
+├── dataset_generator/         # Rust-based Balanis analytical dataset generator
+├── run.sh                     # Docker helper script
+├── Dockerfile / docker-compose.yml
+├── requirements.txt
+└── tests/
 ```
 
-## Quickstart
+## Dataset
 
-**Prerequisites:** Docker and Docker Compose installed.
+The base dataset (`clean_dataset_rect.csv`) contains 25,025 CST Studio simulations with 4 columns:
 
-```bash
-# 1. Build and start the container
-./run.sh start
+| Column | Range | Description |
+|---|---|---|
+| `freq` | 1.5–10.5 GHz | Operating frequency |
+| `S11` | -49 to 0 dB | Return loss |
+| `patch_length` | 8–34.1 mm | Patch length (9 values) |
+| `substrate_height` | 0.8, 2.0, 3.2 mm | Substrate thickness (3 values) |
 
-# 2. Train the model (takes ~1 min)
-./run.sh train
+### Multi-fidelity augmentation
 
-# 3. Launch the web app
-./run.sh app
-# → Open http://localhost:7860
+The CST dataset only covers 3 substrate heights. `augment_dataset.py` uses quadratic interpolation between the CST data points to generate synthetic samples at 7 intermediate heights (1.0, 1.2, 1.4, 1.6, 1.8, 2.4, 2.8 mm), producing 81,081 total rows across 10 heights.
+
+This approach is based on multi-fidelity surrogate modelling techniques from:
+- Pietrenko-Dabrowska et al., "Two-stage variable-fidelity modeling of antennas with domain confinement," *Sci. Rep.* 12, 17275 (2022)
+
+## Model
+
+- **Algorithm:** Random Forest Regressor
+- **Features:** freq, patch_length, substrate_height
+- **Target:** S11 (dB)
+- **Performance:** R² = 0.9959, MAE = 0.08 dB on test set
+- **Validated against CST ground truth:** R² = 0.9980, MAE = 0.056 dB
+
+### Known limitation
+
+The training data uses 9 MHz frequency steps. Narrow resonance dips may be deeper in actual CST simulation than the model predicts. The predicted S11 is a conservative estimate — actual performance will be equal or better.
+
+## 3D Visualiser
+
+The app includes an interactive 3D antenna preview (Plotly) showing ground plane, substrate, and patch with dimension annotations. The visualiser uses a registry pattern for extensibility:
+
+```python
+@antenna_3d.register("circular")
+def _render_circular(dims: dict, **kw) -> go.Figure:
+    ...
 ```
 
-Optionally, run hyperparameter tuning after the base model is trained (takes 5-10 min):
-```bash
-./run.sh tune
-```
-The app automatically picks up the tuned model (`rf_antenna_model_tuned.pkl`) if it exists.
+Currently registered shapes: `rectangular`, `circular`.
 
-## Web UI
+## CST Linker
 
-The Gradio app at `http://localhost:7860` has two tabs:
+Included as a git submodule (`CST_Linker/`). After prediction, click "Launch CST Linker" to generate a `.cstprj` file with the predicted dimensions. Requires CST Studio Suite Python API on the target machine.
 
-- **Prediction** — Slide the frequency (1.0–10.0 GHz), optionally set min/max dimension constraints per parameter, and click Predict. Results show a table with predicted values and constraint status.
-- **Dataset Management** — Upload custom CSV datasets, select a registered dataset, and train a new model. Training metrics (R², MSE, MAE per parameter) display inline. The model hot-reloads after training.
-
-## Packaging
-
-Build a standalone executable with PyInstaller:
-```bash
-./run.sh build-exe
-```
-Output goes to `dist/antenna-ml/`.
-
-## run.sh command reference
+## run.sh commands
 
 ```
-Container management:
-  ./run.sh start          Build + start container (detached)
-  ./run.sh stop           Stop container
-  ./run.sh restart        Restart container
-  ./run.sh rebuild        Rebuild image (after changing Dockerfile/requirements)
-  ./run.sh status         Container status + list saved model files
-  ./run.sh logs           Follow container logs
-  ./run.sh info           Full project info + Docker disk usage
-
-ML workflow:
-  ./run.sh train          Train base Random Forest model
-  ./run.sh tune           GridSearchCV hyperparameter tuning (~5-10 min)
-  ./run.sh app            Start Gradio web interface at :7860
-  ./run.sh build-exe      Package as standalone executable via PyInstaller
-
-Development:
-  ./run.sh test           Run pytest with coverage
-  ./run.sh shell          bash shell inside container
-  ./run.sh python         Python REPL inside container
-  ./run.sh exec "cmd"     Run arbitrary command in container
-
-File management:
-  ./run.sh upload <file>    Copy local file into container
-  ./run.sh download <file>  Copy file out of container
-  ./run.sh backup           Timestamped backup of models + plots
-
-Cleanup:
-  ./run.sh clean          Remove .pkl and .png output files
-  ./run.sh clean-all      Remove containers, images, and outputs
+./run.sh start       Start Docker container
+./run.sh stop        Stop container
+./run.sh rebuild     Rebuild and start
+./run.sh train       Train the model
+./run.sh tune        Hyperparameter tuning (~15-30 min)
+./run.sh app         Launch Gradio at :7860
+./run.sh test        Run pytest with coverage
+./run.sh build-exe   Package with PyInstaller
+./run.sh shell       Bash shell in container
+./run.sh clean       Remove generated .pkl/.png files
 ```
-
-## Model details
-
-- **Algorithm:** `RandomForestRegressor` (multi-output)
-- **Feature:** `Frequency(GHz)` — single input
-- **Targets:** 6 antenna design parameters
-- **Split:** 80% train / 20% test, `random_state=42`
-- **Feature scaling:** `StandardScaler`
-- **Evaluation:** R², MSE, MAE per parameter + overall
-
-### Hyperparameter search space
-
-| Parameter | Values |
-|---|---|
-| `n_estimators` | 50, 100, 200 |
-| `max_depth` | None, 10, 20, 30 |
-| `min_samples_split` | 2, 5, 10 |
-| `min_samples_leaf` | 1, 2, 4 |
-| `max_features` | sqrt, log2, None |
-
-Total combinations: 324 × 5-fold CV, selected by R² score.
-
-## Saved artifacts
-
-After training, the following files are created in the project directory (mounted as a Docker volume, so they persist on the host):
-
-| File | Contents |
-|---|---|
-| `rf_antenna_model.pkl` | Trained base Random Forest |
-| `rf_antenna_model_tuned.pkl` | Tuned model (if `tune` was run) |
-| `rf_antenna_model_<dataset>.pkl` | Dataset-specific model (if trained from UI) |
-| `scaler_X.pkl` | Fitted `StandardScaler` |
-| `target_columns.pkl` | List of target column names |
-| `prediction_results.png` | Actual vs predicted scatter plots |
-| `dataset_registry.json` | Registered datasets metadata |
 
 ## Stack
 
-- Python 3.11
-- scikit-learn 1.3.2
-- pandas 2.1.4 · numpy 1.26.2
-- Gradio 4.16
-- matplotlib 3.8.2 · seaborn 0.13.0
-- joblib 1.3.2
-- hypothesis 6.112.1 (property-based testing)
-- PyInstaller 6.11.1 (packaging)
+- Python 3.11 / scikit-learn 1.3 / pandas 2.1 / numpy 1.26
+- Gradio 4.16 / Plotly 5.18
 - Docker (python:3.11-slim)
+- Rust (dataset generator)

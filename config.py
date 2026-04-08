@@ -10,8 +10,18 @@ FREQ_MIN = 1.5
 FREQ_MAX = 10.5
 
 # Feature columns (model inputs) and target columns (model outputs).
-FEATURE_COLUMNS = ["freq", "patch_length", "substrate_height"]
-TARGET_COLUMNS = ["S11"]
+# The model takes only the operating frequency as input and predicts all
+# antenna geometry parameters + S11 (multi-output regression).
+FEATURE_COLUMNS = ["freq"]
+TARGET_COLUMNS = [
+    "S11",
+    "patch_length",
+    "width of patch in mm",
+    "substrate_height",
+    "substrate_length",
+    "substrate_width",
+    "effective_er",
+]
 
 EXPECTED_COLUMNS = FEATURE_COLUMNS + TARGET_COLUMNS
 

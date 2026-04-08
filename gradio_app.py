@@ -40,6 +40,54 @@ def _load_geometry_grid():
         _geometry_grid = None
 
 
+def predict_antenna_parameters(frequency: float) -> str:
+    """Predict all antenna parameters for a given frequency.
+
+    This is a simplified single-call prediction interface (no geometry
+    constraints) used by tests and simple integrations.
+
+    Args:
+        frequency: Target operating frequency in GHz.
+
+    Returns:
+        Markdown-formatted string with the predicted parameters.
+    """
+    if not _model_loaded:
+        return (
+            "⚠️ No trained model available. "
+            "Please train a model first via the Dataset Management tab."
+        )
+
+    if frequency < config.FREQ_MIN or frequency > config.FREQ_MAX:
+        return (
+            f"⚠️ Frequency {frequency:.2f} GHz is out of training range "
+            f"({config.FREQ_MIN}–{config.FREQ_MAX} GHz)."
+        )
+
+    at_boundary = (frequency == config.FREQ_MIN or frequency == config.FREQ_MAX)
+
+    try:
+        X = np.array([[frequency]])
+        X_scaled = _scaler.transform(X)
+        pred = _model.predict(X_scaled)
+        # Multi-output: shape (1, n_targets).  Single-output: shape (1,) or (n_targets,).
+        pred_row = pred[0] if pred.ndim == 2 else pred
+    except Exception as exc:
+        logger.error("predict_antenna_parameters failed: %s", exc)
+        return f"❌ Prediction failed: {exc}"
+
+    output = f"### Predicted antenna parameters for {frequency:.1f} GHz\n\n"
+    if at_boundary:
+        output += (
+            f"⚠️ Frequency is at the boundary of the training range "
+            f"({config.FREQ_MIN}–{config.FREQ_MAX} GHz).\n\n"
+        )
+    output += "| Parameter | Value |\n|---|---|\n"
+    for col, val in zip(_target_columns, pred_row):
+        output += f"| {col} | {float(val):.4f} |\n"
+    return output
+
+
 def predict_best_design(frequency, max_patch_length, max_substrate_height):
     global _last_design
     _last_design = None

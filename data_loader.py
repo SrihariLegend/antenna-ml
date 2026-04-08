@@ -77,6 +77,12 @@ def validate_dataset(df: pd.DataFrame) -> ValidationResult:
     if missing:
         errors.append(f"Missing required columns: {missing}")
 
+    # Check for unexpected columns
+    required_set = set(required)
+    unexpected = [c for c in df.columns if c not in required_set]
+    if unexpected:
+        errors.append(f"Unexpected columns found: {unexpected}")
+
     # Check for duplicate column names
     seen: set[str] = set()
     duplicates: list[str] = []
@@ -205,10 +211,23 @@ def prepare_features_targets(
         )
 
     if target_cols:
-        missing_targets = [c for c in target_cols if c not in df.columns]
-        if missing_targets:
-            raise KeyError(f"Target columns {missing_targets} not found.")
-        target_columns = target_cols
+        # Use the intersection of configured target columns and the actual
+        # columns present in the dataframe.  This lets the function work with
+        # both the full augmented dataset (all 7 targets) and the bare CST CSV
+        # (3 targets) without raising an error.
+        target_columns = [c for c in target_cols if c in df.columns]
+        if not target_columns:
+            # None of the configured targets are present — fall back to all
+            # non-feature columns.
+            target_columns = [col for col in df.columns if col not in feature_cols]
+        elif len(target_columns) < len(target_cols):
+            missing_targets = [c for c in target_cols if c not in df.columns]
+            logger.warning(
+                "Some configured target columns are absent from this dataset and will "
+                "be skipped: %s.  Using available targets: %s",
+                missing_targets,
+                target_columns,
+            )
     else:
         target_columns = [col for col in df.columns if col not in feature_cols]
 
